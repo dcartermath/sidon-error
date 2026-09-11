@@ -1,0 +1,50 @@
+Instructions for high precision solving.
+
+
+-- Prerequisites --
+
+- Python, NumPy, and SymPy
+
+- SDPA-GMP:
+0. If you are on Windows, first set up WSL (Ubuntu): https://learn.microsoft.com/en-us/windows/wsl/install
+   If you are on Mac or Linux, I assume you know how to use the terminal already.
+
+1. On Windows: open "Ubuntu". On other OS: open the terminal.
+
+2. Run the following commands (the last one will take a little while):
+
+rm -rf sdpa-gmp
+git clone https://github.com/nakatamaho/sdpa-gmp.git
+cd sdpa-gmp
+aclocal ; autoconf ; automake --add-missing
+autoreconf --force --install
+./configure
+make -j4
+
+3. You should now have an `sdpa_gmp` executable in the current directory. You can safely move this executable to another directory (but keep it in the WSL system, if you are on Windows).
+
+
+-- Usage --
+
+Recall that we alternate between optimizing the variables (G, p) given H and the variables (H, p) given G. We assume that we are given G, so we optimize (H, p). The file `high_prec_write.py` contains code for taking G (given in a text file from np.savetext) and writing the relevant convex program in SDPA sparse format.
+
+1. Run `python high_prec.py [G] [upsilon]` where [G] is replaced by the name of relevant text dump from np.savetxt and [upsilon] is either a file containing the value of upsilon to use, or a (decimal) number. This will produce a file named `sidon.dat-s`, containing the data for a semidefinite program.
+
+   We do a small amount of rounding in this step: G is rounded so that all entries are of the form integer/2^20, and so that sum(G_i) = 1 exactly. Additionally, I write the semidefinite program so that all convolutions are >= 1 + 10^-30. The purpose of this is to cancel out the solver imprecision.
+
+2. Move the files `sidon.dat-s` and `sidon.sdpa` (also included) to the directory where you have put the `sdpa_gmp` executable.
+
+3. In the terminal, run `./sdpa_gmp -ds sidon.dat-s -o sidon.result -p sidon.sdpa`. This may take a *very* long time, depending on the data file. It will produce a file named `sidon.result`. Rarely this solver may fail; if it does, try changing the value of gammaStar in sidon.sdpa from 0.5 to 0.3 or something smaller.
+
+   The solver parameters are configurable by editing `sidon.sdpa` (see link [1] for explanation about these parameters). I solve to 30 digits, so the solver tolerance exactly cancels the wiggle-room in step 1 above, and I use a working precision of 100 digits. Note that this will probably make the solver return the code `pdFEAS` or `noINFO` instead of `pdOPT`, as it is (rightfully) unable to determine if the program is feasible with these settings.
+
+4. Move `sidon.result` back to the directory with `high_prec_round.py`. Run `python high_prec_round.py [G] [upsilon] sidon.result` (with [G] and [upsilon] as before). This will print the values of alpha and beta obtained, as well as verifying the following conditions:
+
+- integral g = 1
+- sum p = 1 exactly
+- E[g * h(x)] >= 1
+
+   It also creates three files `G_exact.txt`, `H_exact.txt`, `p_exact.txt` storing the relevant matrices/vectors in rational form. The file format is as follows: each line of the file is a row of the matrix, and the entries within a row are comma-separated.
+
+
+[1] https://sourceforge.net/projects/sdpa/files/sdpa/sdpa.7.1.1.manual.20080618.pdf/download
