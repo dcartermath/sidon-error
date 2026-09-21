@@ -1,7 +1,7 @@
 #Code for verifying a WT-triple.
 # Usage:
 #    `python.exe verify.py [folder]`
-# where [folder] is one of `asymptotic` or `explicit`
+# where [folder] is one of `asymptotic`, `explicit`, etc.
 
 import sys
 import sympy
